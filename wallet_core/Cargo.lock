@@ -8416,6 +8416,7 @@ dependencies = [
  "futures",
  "gba_hc_converter",
  "health_checkers",
+ "hex",
  "hsm",
  "http",
  "http_utils",

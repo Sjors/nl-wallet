@@ -60,6 +60,11 @@ path = "tests/pin_recovery.rs"
 required-features = ["integration_test"]
 
 [[test]]
+name = "privacy"
+path = "tests/privacy.rs"
+required-features = ["integration_test"]
+
+[[test]]
 name = "registration"
 path = "tests/registration.rs"
 required-features = ["integration_test"]
@@ -200,6 +205,7 @@ hsm_test = ["wallet_provider?/hsm_test"]
 integration_test = [
     "allow_insecure_url",
     "db_test",
+    "dep:hex",
     "dep:jsonwebtoken",
     "dep:rand_core",
     "dep:regex",
@@ -303,6 +309,7 @@ db_test.path = "../lib/db_test"
 dcql = { path = "../lib/dcql", optional = true }
 gba_hc_converter = { path = "../gba_hc_converter", optional = true }
 health_checkers = { path = "../lib/health_checkers", optional = true }
+hex = { workspace = true, optional = true }
 hsm = { path = "../lib/hsm", optional = true }
 http_utils = { path = "../lib/http_utils", optional = true }
 issuance_server = { path = "../wallet_server/issuance_server", optional = true }
