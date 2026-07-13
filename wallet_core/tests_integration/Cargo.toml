@@ -205,7 +205,9 @@ hsm_test = ["wallet_provider?/hsm_test"]
 integration_test = [
     "allow_insecure_url",
     "db_test",
+    "dep:base64",
     "dep:hex",
+    "dep:jwe",
     "dep:jsonwebtoken",
     "dep:rand_core",
     "dep:regex",
@@ -314,6 +316,7 @@ hsm = { path = "../lib/hsm", optional = true }
 http_utils = { path = "../lib/http_utils", optional = true }
 issuance_server = { path = "../wallet_server/issuance_server", optional = true }
 issuer_common = { path = "../wallet_server/issuer_common", optional = true }
+jwe = { path = "../lib/jwe", optional = true }
 jwt = { path = "../lib/jwt", optional = true }
 openid4vc = { path = "../lib/openid4vc", optional = true }
 openid4vc_server = { path = "../lib/openid4vc_server", optional = true }

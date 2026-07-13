@@ -8425,6 +8425,7 @@ dependencies = [
  "issuer_common",
  "itertools 0.14.0",
  "jsonwebtoken",
+ "jwe",
  "jwt",
  "openid4vc",
  "openid4vc_server",
