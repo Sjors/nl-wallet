@@ -301,7 +301,9 @@ pub async fn setup_env_default(
     .await
 }
 
-pub async fn setup_env(
+/// Sets up the full integration environment and retains the HSM client shared
+/// by the started services for specialized test helpers.
+async fn setup_env_with_hsm(
     (static_settings, static_root_ca): (StaticSettings, ReqwestTrustAnchor),
     (ups_settings, ups_root_ca): (UpsSettings, ReqwestTrustAnchor),
     (mut wp_settings, wp_root_ca): (WpSettings, ReqwestTrustAnchor),
@@ -319,6 +321,7 @@ pub async fn setup_env(
     WalletConfiguration,
     IssuerData,
     DisclosureUrls,
+    Pkcs11Hsm,
 ) {
     let mock_device_config = MockDeviceConfig::generate();
     wp_settings.ios = mock_device_config.ios_wp_settings();
@@ -361,7 +364,7 @@ pub async fn setup_env(
         SecretKeyVariant::from_settings(pid_issuer_settings.recovery_code.clone(), Some(hsm.clone()))
             .expect("could not initialize recovery code secret key");
 
-    let pid_issuer_url = start_pid_issuer_server(pid_issuer_settings, Some(hsm), |public_url| {
+    let pid_issuer_url = start_pid_issuer_server(pid_issuer_settings, Some(hsm.clone()), |public_url| {
         // The production `UpstreamOidcAuthorizationCodeFlow` (state bridge, callback handler, BRP
         // attribute mapping, recovery-code HMAC) with only its two external boundaries mocked:
         // `MockDigidClient` redirects the user-agent straight back to the issuer's own
@@ -396,6 +399,46 @@ pub async fn setup_env(
         Some(pid_credential_offer),
     )
     .await;
+
+    (
+        config_server_config,
+        mock_device_config,
+        wallet_config,
+        issuer_data,
+        verifier_server_urls,
+        hsm,
+    )
+}
+
+pub async fn setup_env(
+    (static_settings, static_root_ca): (StaticSettings, ReqwestTrustAnchor),
+    (ups_settings, ups_root_ca): (UpsSettings, ReqwestTrustAnchor),
+    wp_config: (WpSettings, ReqwestTrustAnchor),
+    verifier_settings: VerifierSettings,
+    pid_issuer_settings: PidIssuerSettings,
+    issuance_config: (
+        IssuanceServerSettings,
+        Vec<IssuableDocument>,
+        ReqwestTrustAnchor,
+        TlsServerConfig,
+    ),
+) -> (
+    ConfigServerConfiguration,
+    MockDeviceConfig,
+    WalletConfiguration,
+    IssuerData,
+    DisclosureUrls,
+) {
+    let (config_server_config, mock_device_config, wallet_config, issuer_data, verifier_server_urls, _) =
+        setup_env_with_hsm(
+            (static_settings, static_root_ca),
+            (ups_settings, ups_root_ca),
+            wp_config,
+            verifier_settings,
+            pid_issuer_settings,
+            issuance_config,
+        )
+        .await;
 
     (
         config_server_config,
@@ -534,15 +577,37 @@ pub async fn setup_wallet_and_env(
         TlsServerConfig,
     ),
 ) -> (WalletWithStorage, DisclosureUrls, IssuerData) {
-    let (config_server_config, mock_device_config, wallet_config, issuer_data, verifier_server_urls) = setup_env(
-        static_server_settings(),
-        ups_config,
-        wp_config,
-        verification_server_settings(db_setup.verification_server_url()),
-        issuer_config,
-        issuance_config,
-    )
-    .await;
+    let (wallet, verifier_server_urls, issuer_data, _) =
+        setup_wallet_and_env_with_hsm(db_setup, vendor, ups_config, wp_config, issuer_config, issuance_config).await;
+
+    (wallet, verifier_server_urls, issuer_data)
+}
+
+/// Set up a wallet and its services, returning the HSM client shared by those
+/// services for tests that need to model an HSM operation explicitly.
+pub async fn setup_wallet_and_env_with_hsm(
+    db_setup: &DbSetup,
+    vendor: WalletDeviceVendor,
+    ups_config: (UpsSettings, ReqwestTrustAnchor),
+    wp_config: (WpSettings, ReqwestTrustAnchor),
+    issuer_config: PidIssuerSettings,
+    issuance_config: (
+        IssuanceServerSettings,
+        Vec<IssuableDocument>,
+        ReqwestTrustAnchor,
+        TlsServerConfig,
+    ),
+) -> (WalletWithStorage, DisclosureUrls, IssuerData, Pkcs11Hsm) {
+    let (config_server_config, mock_device_config, wallet_config, issuer_data, verifier_server_urls, hsm) =
+        setup_env_with_hsm(
+            static_server_settings(),
+            ups_config,
+            wp_config,
+            verification_server_settings(db_setup.verification_server_url()),
+            issuer_config,
+            issuance_config,
+        )
+        .await;
 
     let key_holder = match vendor {
         WalletDeviceVendor::Apple => mock_device_config.apple_key_holder(),
@@ -551,7 +616,7 @@ pub async fn setup_wallet_and_env(
 
     let wallet = setup_in_memory_wallet(config_server_config, wallet_config, key_holder).await;
 
-    (wallet, verifier_server_urls, issuer_data)
+    (wallet, verifier_server_urls, issuer_data, hsm)
 }
 
 /// Start the minimal wallet-facing stack — update-policy server, wallet provider and the static config
